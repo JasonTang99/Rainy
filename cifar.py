@@ -54,7 +54,12 @@ class Net(nn.Module):
 		return x
 
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+	device = torch.device("cuda:0")
+	print("Running on CUDA GPU")
+else:
+	device = torch.device("cpu")
+	print("Running on CPU")
 
 net = Net()
 net.to(device)

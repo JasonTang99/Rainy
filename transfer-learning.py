@@ -7,41 +7,10 @@ import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
 import matplotlib.pyplot as plt
-import time
 import os
 import copy
 
-
-def data_transform_properties():
-    return {
-        'train': transforms.Compose([
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-        'val': transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ]),
-    }
-
-
-def cudacheck():
-    device = None
-    if torch.cuda.is_available():
-        device = torch.device("cuda:0")
-        print("Running on CUDA GPU")
-    else:
-        device = torch.device("cpu")
-        print("Running on CPU")
-    return device
-
-
 def imshow(inp, title=None):
-    """Imshow for Tensor."""
     inp = inp.numpy().transpose((1, 2, 0))
     mean = np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
@@ -53,9 +22,7 @@ def imshow(inp, title=None):
     plt.pause(0.001)
 
 
-def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=10):
-    since = time.time()
-
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
@@ -111,9 +78,6 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
 
         print()
 
-    time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
@@ -121,7 +85,8 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
     return model
 
 
-def visualize_model(model, dataloaders, num_images=6):
+
+def visualize_model(model, num_images=6):
     was_training = model.training
     model.eval()
     images_so_far = 0
@@ -148,55 +113,68 @@ def visualize_model(model, dataloaders, num_images=6):
         model.train(mode=was_training)
 
 
-def main(mode="training"):
-    plt.ion()
-    device = cudacheck()
-    if mode == "training":
-        print("In training mode")
-        data_transforms = data_transform_properties()
-        data_dir = 'hymenoptera_data'
 
-        image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
-        dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4, shuffle=True, num_workers=4) for x in ['train', 'val']}
-        dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-        class_names = image_datasets['train'].classes
-
-        model = models.resnet152(pretrained=True)
-        for param in model.parameters():
-            param.requires_grad = False
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, 2)
-
-        model = model.to(device)
-
-        criterion = nn.CrossEntropyLoss()
+plt.ion() 
+data_transforms = {
+    'train': transforms.Compose([
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'val': transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+}
 
 
-        # Observe that all parameters are being optimized
-        optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+data_dir = 'hymenoptera_data'
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
+                                          data_transforms[x])
+                  for x in ['train', 'val']}
+dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
+                                             shuffle=True, num_workers=4)
+              for x in ['train', 'val']}
+dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+class_names = image_datasets['train'].classes
 
-        # Decay LR by a factor of 0.1 every 7 epochs
-        exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-
-        model = train_model(model, dataloaders, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=10)
-
-        # PATH = "./models/tuning.pth"
-
-        # torch.save(model_ft, PATH)
-
-        # model = torch.load(PATH)
-        # model.eval()
-        visualize_model(model, dataloaders)
-
-        plt.ioff()
-        plt.show()
-
-    else:
-        print("In evaluation mode")
-
-
-if __name__ == "__main__":
-    main()
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+    print("Running on CUDA GPU")
+else:
+    device = torch.device("cpu")
+    print("Running on CPU")
 
 
 
+model = models.resnet152(pretrained=True)
+for param in model.parameters():
+    param.requires_grad = False
+
+num_ftrs = model.fc.in_features
+model.fc = nn.Linear(num_ftrs, 2)
+
+model = model.to(device)
+
+criterion = nn.CrossEntropyLoss()
+
+# Observe that all parameters are being optimized
+optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+
+# Decay LR by a factor of 0.1 every 7 epochs
+decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+
+model = train_model(model, criterion, optimizer_ft, decay, num_epochs=10)
+
+PATH = "./models/tuning.pth"
+
+# torch.save(model, PATH)
+
+# model = torch.load(PATH)
+visualize_model(model)
+
+plt.ioff()
+plt.show()

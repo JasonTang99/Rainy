@@ -120,6 +120,12 @@ data_transforms = {
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
+    'test': transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
 }
 
 
@@ -140,42 +146,37 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
     print("Running on CPU")
+print()
 
-print(torch.cuda.get_device_capability(device))
-print(torch.cuda.max_memory_cached(device))
-print(torch.cuda.memory_cached(device))
-print(torch.cuda.max_memory_allocated(device))
-print(torch.cuda.memory_allocated(device))
+# model = models.resnet152(pretrained=True)
+# for param in model.parameters():
+#     param.requires_grad = False
 
-model = models.resnet152(pretrained=True)
-for param in model.parameters():
-    param.requires_grad = False
-
-num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, 2)
+# num_ftrs = model.fc.in_features
+# model.fc = nn.Linear(num_ftrs, 2)
 
 
-# params = list(model.parameters())
-# print(len(params))
-# for param in params:
-#     print(param.size())
+# # params = list(model.parameters())
+# # print(len(params))
+# # for param in params:
+# #     print(param.size())
 
-model = model.to(device)
+# model = model.to(device)
 
-criterion = nn.CrossEntropyLoss()
+# criterion = nn.CrossEntropyLoss()
 
-optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
+# optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
 
-decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+# decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-model = train_model(model, criterion, optimizer_ft, decay, num_epochs=10)
+# model = train_model(model, criterion, optimizer_ft, decay, num_epochs=10)
 
 PATH = "./models/tuning.pth"
 
-torch.save(model, PATH)
+# torch.save(model, PATH)
 
-# model = torch.load(PATH)
-visualize_model(model)
+model = torch.load(PATH)
+visualize_model(model, 20)
 
 plt.ioff()
 plt.show()

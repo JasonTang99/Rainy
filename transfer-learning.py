@@ -21,13 +21,25 @@ def imshow(inp, title=None):
         plt.title(title)
     plt.pause(0.001)
 
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data=False, load_state_path=""):
+    # Trys to load in previous model state if path is given
+    try:
+        if load_state_path is not "":
+            previous_state = torch.load(load_state_path)
+            model.load_state_dict(previous_state['model_state_dict'])
+            optimizer.load_state_dict(previous_state['optimizer_state_dict'])
+            epoch_count = previous_state['epoch_count']
+            print("Previous State loaded without error")
+        else:
+            epoch_count = 0    
+    except Exception as e:
+        print("Model could not be loaded from " + load_state_path)
+        print(e)
+        epoch_count = 0
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
-    # best_model_wts = copy.deepcopy(model.state_dict())
-    # best_acc = 0.0
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('Epoch {}/{}'.format(epoch + epoch_count, num_epochs + epoch_count - 1))
         print('-' * 10)
 
         for phase in ['train', 'val']:
@@ -61,21 +73,25 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
-            # if phase == 'val' and epoch_acc > best_acc:
-            #     best_acc = epoch_acc
-            #     best_model_wts = copy.deepcopy(model.state_dict())
+            if save_data is True:
+                fw = open("stats.txt", "a+")
+                fw.write('{} {:.4f} {:.4f}\n'.format(phase, epoch_loss, epoch_acc))
 
+            # Saves a checkpoint every 5 epochs
+            if phase == 'val' and epoch%5 == 0 and epoch != 0:
+                try: 
+                    torch.save({'epoch_count': epoch_count+epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'loss': loss}, "./models/checkpoint.pth")
+                    print("Checkpoint saved")
+                except:
+                    print("Checkpoint failed to save")
         print()
 
     # print('Best val Acc: {:4f}'.format(best_acc))
 
     # model.load_state_dict(best_model_wts)
     return model
-
-
 
 def visualize_model(model, num_images=6):
     was_training = model.training
@@ -84,7 +100,7 @@ def visualize_model(model, num_images=6):
     fig = plt.figure()
 
     with torch.no_grad():
-        for i, (inputs, labels) in enumerate(dataloaders['val']):
+        for i, (inputs, labels) in enumerate(dataloaders['test']):
             inputs = inputs.to(device)
             labels = labels.to(device)
 
@@ -103,43 +119,59 @@ def visualize_model(model, num_images=6):
                     return
         model.train(mode=was_training)
 
+def set_data_transform():
+    # global data_transforms 
+    return {
+        'train': transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+        'val': transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+        'test': transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ]),
+    }
+
+def display_model_params():
+    params = list(model.parameters())
+    print(len(params))
+    for param in params:
+        print(param.size())
+        if param.requires_grad is True:
+            print("TRAINABLE")
 
 
 plt.ion()
 
-data_transforms = {
-    'train': transforms.Compose([
-        transforms.RandomResizedCrop(224),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ]),
-    'val': transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ]),
-    'test': transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ]),
-}
+# Sets up proper data transformations
+data_transforms = set_data_transform()
 
-
-# data_dir = 'hymenoptera_data'
+# Sets the directory to get the test, val, and train data
 data_dir = 'rain_data'
-image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
-                                          data_transforms[x])
-                  for x in ['train', 'val', 'test']}
-dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
-                                             shuffle=True, num_workers=4)
-              for x in ['train', 'val', 'test']}
+
+# Sets up getters for test, val, and train data
+image_datasets = {
+    x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x])
+    for x in ['train', 'val', 'test']
+}
+dataloaders = {
+    x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4, shuffle=True, num_workers=4)
+    for x in ['train', 'val', 'test']
+}
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
 class_names = image_datasets['train'].classes
 
+# Sets up which device (CPU or GPU) to use
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print("Running on CUDA GPU")
@@ -148,34 +180,29 @@ else:
     print("Running on CPU")
 print()
 
-# model = models.resnet152(pretrained=True)
-# for param in model.parameters():
-#     param.requires_grad = False
+# Loads in the pretrained model and freezes its parameters
+model = models.resnet152(pretrained=True)
+for param in model.parameters():
+    param.requires_grad = False
 
-# num_ftrs = model.fc.in_features
-# model.fc = nn.Linear(num_ftrs, 2)
+# Resets the top layers
+num_features = model.fc.in_features
+model.fc = nn.Linear(num_features, 2)
 
+# display_model_params()
 
-# # params = list(model.parameters())
-# # print(len(params))
-# # for param in params:
-# #     print(param.size())
-
-# model = model.to(device)
-
-# criterion = nn.CrossEntropyLoss()
-
-# optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
-
-# decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-
-# model = train_model(model, criterion, optimizer_ft, decay, num_epochs=10)
+# Sets up training parameters
+model = model.to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
+decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+model = train_model(model, criterion, optimizer_ft, decay, num_epochs=11, save_data=True, load_state_path="./models/checkpoint.tar")
 
 PATH = "./models/tuning.pth"
 
-# torch.save(model, PATH)
+torch.save(model, PATH)
 
-model = torch.load(PATH)
+# model = torch.load(PATH)
 visualize_model(model, 20)
 
 plt.ioff()

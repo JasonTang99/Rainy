@@ -23,45 +23,38 @@ def imshow(inp, title=None):
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
+    # best_model_wts = copy.deepcopy(model.state_dict())
+    # best_acc = 0.0
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
-        # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
                 scheduler.step()
-                model.train()  # Set model to training mode
+                model.train()
             else:
-                model.eval()   # Set model to evaluate mode
+                model.eval()
 
             running_loss = 0.0
             running_corrects = 0
 
-            # Iterate over data.
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                # zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward
-                # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 
-                    # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
 
-                # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
 
@@ -71,17 +64,15 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
 
-            # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+            # if phase == 'val' and epoch_acc > best_acc:
+            #     best_acc = epoch_acc
+            #     best_model_wts = copy.deepcopy(model.state_dict())
 
         print()
 
-    print('Best val Acc: {:4f}'.format(best_acc))
+    # print('Best val Acc: {:4f}'.format(best_acc))
 
-    # load best model weights
-    model.load_state_dict(best_model_wts)
+    # model.load_state_dict(best_model_wts)
     return model
 
 
@@ -114,7 +105,8 @@ def visualize_model(model, num_images=6):
 
 
 
-plt.ion() 
+plt.ion()
+
 data_transforms = {
     'train': transforms.Compose([
         transforms.RandomResizedCrop(224),
@@ -131,24 +123,29 @@ data_transforms = {
 }
 
 
-data_dir = 'hymenoptera_data'
+# data_dir = 'hymenoptera_data'
+data_dir = 'rain_data'
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
                                           data_transforms[x])
-                  for x in ['train', 'val']}
+                  for x in ['train', 'val', 'test']}
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
                                              shuffle=True, num_workers=4)
-              for x in ['train', 'val']}
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+              for x in ['train', 'val', 'test']}
+dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
 class_names = image_datasets['train'].classes
 
 if torch.cuda.is_available():
-    device = torch.device("cuda:0")
+    device = torch.device("cuda")
     print("Running on CUDA GPU")
 else:
     device = torch.device("cpu")
     print("Running on CPU")
 
-
+print(torch.cuda.get_device_capability(device))
+print(torch.cuda.max_memory_cached(device))
+print(torch.cuda.memory_cached(device))
+print(torch.cuda.max_memory_allocated(device))
+print(torch.cuda.memory_allocated(device))
 
 model = models.resnet152(pretrained=True)
 for param in model.parameters():
@@ -157,21 +154,25 @@ for param in model.parameters():
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, 2)
 
+
+# params = list(model.parameters())
+# print(len(params))
+# for param in params:
+#     print(param.size())
+
 model = model.to(device)
 
 criterion = nn.CrossEntropyLoss()
 
-# Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
 
-# Decay LR by a factor of 0.1 every 7 epochs
 decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
 model = train_model(model, criterion, optimizer_ft, decay, num_epochs=10)
 
 PATH = "./models/tuning.pth"
 
-# torch.save(model, PATH)
+torch.save(model, PATH)
 
 # model = torch.load(PATH)
 visualize_model(model)

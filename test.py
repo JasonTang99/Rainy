@@ -34,13 +34,13 @@ net = Net()
 # net.cuda()
 # print(net)
 
-# params = list(net.parameters())
-# print(len(params))
-# for param in params:
-# 	print(param.size())
+params = list(net.parameters())
+print(len(params))
+for param in params:
+	print(param.size())
 
 input = torch.randn(1,1,32,32)
-input.to("cuda")
+input.to(torch.device("cuda"))
 out = net(input)
 print(out)
 
@@ -75,7 +75,7 @@ optimizer = optim.SGD(net.parameters(), lr=0.01)
 # For the training loop
 optimizer.zero_grad()
 out = net(input)
-loss = criterion(output, target)
+loss = criterion(out, target)
 loss.backward()
 optimizer.step()
 

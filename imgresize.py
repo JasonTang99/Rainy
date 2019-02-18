@@ -1,19 +1,37 @@
 from PIL import Image
 import os, sys
 
-path = "./rain"
+path = "./not_rain2/"
 dirs = os.listdir( path )
 
-i = 0
+f = 0
+name = './rain_data/not_rain/no'
+minsize = 900
+
 
 for item in dirs:
-	print(item)
-	if os.path.isfile(path+item):
-		im = Image.open(path+item)
-		f, _ = os.path.splitext(path+item)
-		print(im.size)
-		i += 1
-		# imResize = im.resize((200,200), Image.ANTIALIAS)
-		# imResize.save(f + ' resized.jpg', 'JPEG', quality=100)
+	if os.path.isfile(path+item) and '.jpg' in item:
+		try:
+			im = Image.open(path+item)
 
-print(i)
+			width = im.size[0]
+			height = im.size[1]
+			print(im.size)
+			if width > height:
+				size = (int(width/height * minsize), minsize)
+				print(size)
+				imResize = im.resize(size, Image.ANTIALIAS)
+				imResize.save(name + str(f) + '.jpg', 'JPEG', quality=100)
+			else:
+				size = (minsize, int(height/width * minsize))
+				print(size)
+				imResize = im.resize(size, Image.ANTIALIAS)
+				imResize.save(name + str(f) + '.jpg', 'JPEG', quality=100)
+		except:
+			print("oopsies")
+
+		f += 1
+
+
+
+		

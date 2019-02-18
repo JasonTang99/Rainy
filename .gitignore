@@ -1,3 +1,4 @@
 hymenoptera_data/
 data/
 models/*.pth
+rain_data/

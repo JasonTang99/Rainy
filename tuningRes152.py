@@ -154,32 +154,32 @@ def visualize_model(model, num_images=6):
         model.train(mode=was_training)
 
 
-# model_ft = models.resnet152(pretrained=True)
-# for param in model_ft.parameters():
-#     param.requires_grad = False
+model_ft = models.resnet18(pretrained=True)
+for param in model_ft.parameters():
+    param.requires_grad = False
 
-# num_ftrs = model_ft.fc.in_features
-# model_ft.fc = nn.Linear(num_ftrs, 2)
+num_ftrs = model_ft.fc.in_features
+model_ft.fc = nn.Linear(num_ftrs, 2)
 
-# model_ft = model_ft.to(device)
+model_ft = model_ft.to(device)
 
-# criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss()
 
-# # Observe that all parameters are being optimized
-# optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+# Observe that all parameters are being optimized
+optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
 
-# # Decay LR by a factor of 0.1 every 7 epochs
-# exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+# Decay LR by a factor of 0.1 every 7 epochs
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-# model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=10)
+model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=10)
 
-PATH = "./models/tuning.pth"
+# PATH = "./models/tuning.pth"
 
 # torch.save(model_ft, PATH)
 
-model = torch.load(PATH)
-model.eval()
-visualize_model(model)
+# model = torch.load(PATH)
+# model.eval()
+# visualize_model(model_ft)
 
 plt.ioff()
 plt.show()

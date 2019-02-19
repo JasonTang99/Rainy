@@ -29,13 +29,20 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
             model.load_state_dict(previous_state['model_state_dict'])
             optimizer.load_state_dict(previous_state['optimizer_state_dict'])
             epoch_count = previous_state['epoch_count']
+
+            # print(previous_state['model_state_dict'])
+            print(previous_state['optimizer_state_dict'])
             print("Previous State loaded without error")
         else:
-            epoch_count = 0    
+            epoch_count = 0
     except Exception as e:
         print("Model could not be loaded from " + load_state_path)
         print(e)
         epoch_count = 0
+
+    if not frozen_params:
+        for param in model.parameters():
+            param.requires_grad = True
 
 
     for epoch in range(num_epochs):
@@ -52,11 +59,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
             running_loss = 0.0
             running_corrects = 0
 
-            p = 0
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
-                p += 1
+
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
@@ -70,11 +76,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
 
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
-            print(p)
-            # epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_loss = running_loss / 750
-            # epoch_acc = running_corrects.double() / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / 750
+
+            epoch_loss = running_loss / num_samples_train
+            epoch_acc = running_corrects.double() / num_samples_train
 
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
@@ -90,9 +94,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
                     print("Checkpoint saved")
                 except:
                     print("Checkpoint failed to save")
-            # if epoch_acc > 0.95:
-            #     print("model is sufficient")
-            #     return model
         print()
 
     return model
@@ -121,13 +122,12 @@ def visualize_model(model, num_images=6):
                     return
 
 def set_data_transform():
-    # global data_transforms 
     return {
         'train': transforms.Compose([
-            transforms.RandomRotation(15, expand=True),
+            transforms.RandomRotation(10, expand=True),
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(0.08, 0.1, 0.08, 0.05),
+            transforms.ColorJitter(0.08, 0.08, 0.08, 0.08),
             transforms.RandomGrayscale(),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -158,17 +158,29 @@ def run_test():
     correct = 0
     total = 0
     with torch.no_grad():
-        q = 0
         for data in dataloaders['test']:
             images, labels = data
             images, labels = images.to(device), labels.to(device)
-            q+=1
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-        print(q)
     print("Accuracy of the network on the test images: " + str(100.0 * correct / total) + "%")
+
+# Sets up configuration
+training = True
+testing = True
+num_samples_train = 750
+num_samples_test = 1000
+save_model = True
+load_model = False
+frozen_params = True
+
+# PATH_CHECKPOINT = ""
+PATH_CHECKPOINT = "./models/checkpoint18.tar"
+PATH_SAVE = "./models/res18.pth"
+
+
 
 # Sets up proper data transformations
 data_transforms = set_data_transform()
@@ -190,7 +202,7 @@ dataloaders = {
         sampler=torch.utils.data.RandomSampler(
             data_source=image_datasets[x], 
             replacement=True,
-            num_samples=750
+            num_samples=num_samples_train
         )
     )
     for x in ['train', 'val']
@@ -201,16 +213,16 @@ dataloaders['test'] = torch.utils.data.DataLoader(
     batch_size=1, 
     shuffle=False, 
     num_workers=4,
-    sampler=torch.utils.data.RandomSampler(
-        data_source=image_datasets['test'], 
-        replacement=True,
-        num_samples=750
-    )
+    # sampler=torch.utils.data.RandomSampler(
+    #     data_source=image_datasets['test'], 
+    #     replacement=True,
+    #     num_samples=num_samples_test
+    # )
 )
 
+# dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
 
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
-class_names = image_datasets['train'].classes
+# class_names = image_datasets['train'].classes
 
 # Sets up which device (CPU or GPU) to use
 if torch.cuda.is_available():
@@ -221,46 +233,46 @@ else:
     print("Running on CPU")
 print()
 
-# Loads in the pretrained model and freezes its parameters
-model = models.resnet18(pretrained=True)
-for param in model.parameters():
-    param.requires_grad = False
+if load_model:
+    model = torch.load(PATH_SAVE)
 
-# Resets the top layers
-num_features = model.fc.in_features
-model.fc = nn.Linear(num_features, 2)
+if training:
+    # Loads in the pretrained model and freezes its parameters
+    model = models.resnet18(pretrained=True)
+    if frozen_params:
+        for param in model.parameters():
+            param.requires_grad = False
+    
+    # Resets the top layers
+    num_features = model.fc.in_features
+    model.fc = nn.Linear(num_features, 2)
 
-# display_model_params()
+    # display_model_params()
 
-# Sets up training parameters
-model = model.to(device)
-criterion = nn.CrossEntropyLoss() 
-optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
-decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+    # Sets up training parameters
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss() 
+    optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
+    decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-model = train_model(
-    model, 
-    criterion, 
-    optimizer_ft, 
-    decay, 
-    num_epochs = 10, 
-    save_data = True,
-    # checkpoint_path="./models/checkpoint152.tar",
-    checkpoint_path="./models/checkpoint18.tar",
-    # load_state_path="./models/checkpoint152.tar"
-    load_state_path="./models/checkpoint18.tar"
-)
+    model = train_model(
+        model, 
+        criterion, 
+        optimizer_ft, 
+        decay, 
+        num_epochs = 20, 
+        save_data = True,
+        checkpoint_path=PATH_CHECKPOINT,
+        load_state_path=PATH_CHECKPOINT
+    )
 
-# PATH = "./models/res152.pth"
-PATH = "./models/res18.pth"
+    if save_model:
+        torch.save(model, PATH_SAVE)
 
-# torch.save(model, PATH)
+if testing:
 
-# model = torch.load(PATH)
-
-
-# Run on test set to get proper stats
-run_test()
+    # Run on test set to get proper stats
+    run_test()
 
 # plt.ion()
 

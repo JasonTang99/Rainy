@@ -1,12 +1,12 @@
 from PIL import Image
 import os, sys
 
-path = "./not_rain2/"
+path = "./rain_data/val/rain/"
 dirs = os.listdir( path )
 
 f = 0
-name = './rain_data/not_rain/no'
-minsize = 900
+name = "./rain_data2/val/rain/"
+minsize = 500
 
 
 for item in dirs:

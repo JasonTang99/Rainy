@@ -52,10 +52,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
             running_loss = 0.0
             running_corrects = 0
 
+            p = 0
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
-
+                p += 1
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
@@ -69,9 +70,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
 
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
+            print(p)
+            # epoch_loss = running_loss / dataset_sizes[phase]
+            epoch_loss = running_loss / 750
+            # epoch_acc = running_corrects.double() / dataset_sizes[phase]
+            epoch_acc = running_corrects.double() / 750
 
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
@@ -86,9 +90,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
                     print("Checkpoint saved")
                 except:
                     print("Checkpoint failed to save")
-            if epoch_acc > 0.95:
-                print("model is sufficient")
-                return model
+            # if epoch_acc > 0.95:
+            #     print("model is sufficient")
+            #     return model
         print()
 
     return model
@@ -120,14 +124,17 @@ def set_data_transform():
     # global data_transforms 
     return {
         'train': transforms.Compose([
+            transforms.RandomRotation(15, expand=True),
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(0.08, 0.1, 0.08, 0.05),
+            transforms.RandomGrayscale(),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'val': transforms.Compose([
             transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.RandomCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -151,15 +158,16 @@ def run_test():
     correct = 0
     total = 0
     with torch.no_grad():
+        q = 0
         for data in dataloaders['test']:
             images, labels = data
             images, labels = images.to(device), labels.to(device)
-
+            q+=1
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-
+        print(q)
     print("Accuracy of the network on the test images: " + str(100.0 * correct / total) + "%")
 
 # Sets up proper data transformations
@@ -175,13 +183,32 @@ image_datasets = {
 }
 dataloaders = {
     x: torch.utils.data.DataLoader(
-        image_datasets[x], 
-        batch_size=4, 
-        shuffle=True, 
-        num_workers=4
+        dataset=image_datasets[x], 
+        batch_size=2, 
+        shuffle=False, 
+        num_workers=4,
+        sampler=torch.utils.data.RandomSampler(
+            data_source=image_datasets[x], 
+            replacement=True,
+            num_samples=750
+        )
     )
-    for x in ['train', 'val', 'test']
+    for x in ['train', 'val']
 }
+# Set this one to have a batch size of 1 so test runs through all images
+dataloaders['test'] = torch.utils.data.DataLoader(
+    dataset=image_datasets['test'], 
+    batch_size=1, 
+    shuffle=False, 
+    num_workers=4,
+    sampler=torch.utils.data.RandomSampler(
+        data_source=image_datasets['test'], 
+        replacement=True,
+        num_samples=750
+    )
+)
+
+
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
 class_names = image_datasets['train'].classes
 
@@ -216,7 +243,7 @@ model = train_model(
     criterion, 
     optimizer_ft, 
     decay, 
-    num_epochs = 30, 
+    num_epochs = 10, 
     save_data = True,
     # checkpoint_path="./models/checkpoint152.tar",
     checkpoint_path="./models/checkpoint18.tar",
@@ -227,7 +254,7 @@ model = train_model(
 # PATH = "./models/res152.pth"
 PATH = "./models/res18.pth"
 
-torch.save(model, PATH)
+# torch.save(model, PATH)
 
 # model = torch.load(PATH)
 

@@ -21,7 +21,7 @@ def imshow(inp, title=None):
         plt.title(title)
     plt.pause(0.001)
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data=False, load_state_path=""):
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data=False, load_state_path="", checkpoint_path=""):
     # Trys to load in previous model state if path is given
     try:
         if load_state_path is not "":
@@ -39,7 +39,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
 
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch + epoch_count, num_epochs + epoch_count - 1))
+        print('Epoch {}/{}'.format(epoch + epoch_count + 1, num_epochs + epoch_count))
         print('-' * 10)
 
         for phase in ['train', 'val']:
@@ -77,24 +77,23 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, save_data
 
             if save_data is True:
                 fw = open("stats.txt", "a+")
-                fw.write('{} {:.4f} {:.4f}\n'.format(phase, epoch_loss, epoch_acc))
+                fw.write('{} {} {:.4f} {:.4f}\n'.format(epoch + epoch_count + 1, phase, epoch_loss, epoch_acc))
 
-            # Saves a checkpoint every 5 epochs
-            if phase == 'val' and epoch%5 == 0 and epoch != 0:
+            # Saves a checkpoint every 5 epochs and the last epoch, but not the first epoch
+            if phase == 'val' and (epoch == num_epochs-1 or epoch%5 == 0 and epoch != 0):
                 try: 
-                    torch.save({'epoch_count': epoch_count+epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'loss': loss}, "./models/checkpoint.pth")
+                    torch.save({'epoch_count': epoch_count+epoch+1, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'loss': loss}, checkpoint_path)
                     print("Checkpoint saved")
                 except:
                     print("Checkpoint failed to save")
+            if epoch_acc > 0.95:
+                print("model is sufficient")
+                return model
         print()
 
-    # print('Best val Acc: {:4f}'.format(best_acc))
-
-    # model.load_state_dict(best_model_wts)
     return model
 
 def visualize_model(model, num_images=6):
-    was_training = model.training
     model.eval()
     images_so_far = 0
     fig = plt.figure()
@@ -115,9 +114,7 @@ def visualize_model(model, num_images=6):
                 imshow(inputs.cpu().data[j])
 
                 if images_so_far == num_images:
-                    model.train(mode=was_training)
                     return
-        model.train(mode=was_training)
 
 def set_data_transform():
     # global data_transforms 
@@ -150,8 +147,20 @@ def display_model_params():
         if param.requires_grad is True:
             print("TRAINABLE")
 
+def run_test():
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for data in dataloaders['test']:
+            images, labels = data
+            images, labels = images.to(device), labels.to(device)
 
-plt.ion()
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    print("Accuracy of the network on the test images: " + str(100.0 * correct / total) + "%")
 
 # Sets up proper data transformations
 data_transforms = set_data_transform()
@@ -165,7 +174,12 @@ image_datasets = {
     for x in ['train', 'val', 'test']
 }
 dataloaders = {
-    x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4, shuffle=True, num_workers=4)
+    x: torch.utils.data.DataLoader(
+        image_datasets[x], 
+        batch_size=4, 
+        shuffle=True, 
+        num_workers=4
+    )
     for x in ['train', 'val', 'test']
 }
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
@@ -181,7 +195,7 @@ else:
 print()
 
 # Loads in the pretrained model and freezes its parameters
-model = models.resnet152(pretrained=True)
+model = models.resnet18(pretrained=True)
 for param in model.parameters():
     param.requires_grad = False
 
@@ -193,17 +207,36 @@ model.fc = nn.Linear(num_features, 2)
 
 # Sets up training parameters
 model = model.to(device)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss() 
 optimizer_ft = optim.Adam(model.parameters(), lr=0.001)
 decay = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-model = train_model(model, criterion, optimizer_ft, decay, num_epochs=11, save_data=True, load_state_path="./models/checkpoint.tar")
 
-PATH = "./models/tuning.pth"
+model = train_model(
+    model, 
+    criterion, 
+    optimizer_ft, 
+    decay, 
+    num_epochs = 30, 
+    save_data = True,
+    # checkpoint_path="./models/checkpoint152.tar",
+    checkpoint_path="./models/checkpoint18.tar",
+    # load_state_path="./models/checkpoint152.tar"
+    load_state_path="./models/checkpoint18.tar"
+)
+
+# PATH = "./models/res152.pth"
+PATH = "./models/res18.pth"
 
 torch.save(model, PATH)
 
 # model = torch.load(PATH)
-visualize_model(model, 20)
 
-plt.ioff()
-plt.show()
+
+# Run on test set to get proper stats
+run_test()
+
+# plt.ion()
+
+# visualize_model(model, 20)
+# plt.ioff()
+# plt.show()

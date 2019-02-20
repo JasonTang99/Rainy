@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-f = open("goodstats.txt", "r")
+f = open("stats.txt", "r")
 line = f.readline()
 
 data_train_acc = []
@@ -32,13 +32,14 @@ while line is not '':
 
 
 fig, ax = plt.subplots()
-ax.plot(data_train_acc)
-ax.plot(data_val_acc)
+ax.plot(data_val_acc, label='Validation Accuracy')
+ax.plot(data_train_acc, label='Training Accuracy')
 ax.axis([-5, 205, 0.60, 1.0])
 
 ax.set(xlabel='Epoch', ylabel='Accuracy',
        title='Training Using Resnet18')
 ax.grid()
+ax.legend()
 
 fig.savefig("test.png")
 plt.show()

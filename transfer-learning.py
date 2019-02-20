@@ -168,13 +168,14 @@ def run_test():
     print("Accuracy of the network on the test images: " + str(100.0 * correct / total) + "%")
 
 # Sets up configuration
-training = True
+training = False
 testing = True
 num_samples_train = 750
 num_samples_test = 1000
-save_model = True
-load_model = False
+save_model = False
+load_model = True
 frozen_params = True
+save_to_onnx = True
 
 # PATH_CHECKPOINT = ""
 PATH_CHECKPOINT = "./models/checkpoint18.tar"
@@ -260,7 +261,7 @@ if training:
         criterion, 
         optimizer_ft, 
         decay, 
-        num_epochs = 20, 
+        num_epochs = 200, 
         save_data = True,
         checkpoint_path=PATH_CHECKPOINT,
         load_state_path=PATH_CHECKPOINT
@@ -270,9 +271,15 @@ if training:
         torch.save(model, PATH_SAVE)
 
 if testing:
-
-    # Run on test set to get proper stats
+    # Run on test set to get stats
     run_test()
+
+if save_to_onnx:
+    dummy_input = torch.randn(1, 3, 224, 224).to(device)
+    torch.onnx.export(model, dummy_input, "rainy18-94.onnx")
+
+
+
 
 # plt.ion()
 

@@ -1,4 +1,5 @@
 hymenoptera_data/
 data/
 models/*.pth
+models/*.tar
 rain_data/
